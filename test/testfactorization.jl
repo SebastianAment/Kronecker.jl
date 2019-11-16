@@ -1,6 +1,10 @@
 using LinearAlgebra: cholesky
 
 @testset "Factorization" begin
+    @testset "Generic Factorization" begin
+
+    end
+
     @testset "Cholesky" begin
         A = [1 0 0.5;
              0 2 0;
