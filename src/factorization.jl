@@ -15,18 +15,20 @@ import LinearAlgebra: Factorization, factorize
 # KroneckerFactorization is abstract, keeping analogy with Factorization in LinearAlgebra
 abstract type KroneckerFactorization{T} <: Factorization{T} end
 
-# FactorizedKronecker is a concrete type holding arbitrary factorizations
+# FactorizedKroneckerProduct is a concrete type holding arbitrary factorizations
 struct FactorizedKronecker{T, TA<:Factorization{T}, TB<:Factorization{T}} <: KroneckerFactorization{T}
     A::TA
     B::TB
 end
+
+# TODO: need types for FactorizedKroneckerPower, FactorizedKroneckerSum
 
 KroneckerProduct(F::Factorization) = AbstractMatrix(F) # base case of recursion
 KroneckerProduct(K::FactorizedKronecker) = KroneckerProduct(KroneckerProduct(K.A), KroneckerProduct(K.B)) # cast to KroneckerProduct
 kronecker(K::FactorizedKronecker) = KroneckerProduct(K)
 
 #TODO:
-# allow log, logdet, getmatrices, on const KronProdOrFact = Union{AbstractKroneckerProduct, KroneckerFactorization}
+# allow getmatrices, on const KronProdOrFact = Union{AbstractKroneckerProduct, KroneckerFactorization}
 
 import LinearAlgebra: issuccess, Matrix
 issuccess(K::FactorizedKronecker) = issuccess(K.A) && issuccess(K.B)
@@ -35,9 +37,16 @@ Matrix(K::FactorizedKronecker) = collect(K)
 
 factorize(K::AbstractKroneckerProduct) = FactorizedKronecker(factorize(K.A), factorize(K.B))
 
+
 # cholesky
 function cholesky(K::AbstractKroneckerProduct, ::Val{false}=Val(false); check::Bool = true)
     f(A) = cholesky(A, Val(false), check = check)
+    FactorizedKronecker(f(K.A), f(K.B))
+end
+
+# in place cholesky
+function cholesky!(K::AbstractKroneckerProduct, ::Val{false}=Val(false); check::Bool = true)
+    f(A) = cholesky!(A, Val(false), check = check)
     FactorizedKronecker(f(K.A), f(K.B))
 end
 
@@ -47,30 +56,25 @@ function cholesky(K::AbstractKroneckerProduct, ::Val{true}; tol = 0.0, check::Bo
     FactorizedKronecker(f(K.A), f(K.B))
 end
 
-function qr(K::AbstractKroneckerProduct, v::V = Val(false)) where {V<:Union{Val{true}, Val{false}}}
-    f(A) = qr(A, v)
-    FactorizedKronecker(f(K.A), f(K.B))
-end
-
-# in place versions
-function cholesky!(K::AbstractKroneckerProduct, ::Val{false}=Val(false); check::Bool = true)
-    f(A) = cholesky!(A, Val(false), check = check)
-    FactorizedKronecker(f(K.A), f(K.B))
-end
-
-# pivoted cholesky
+# in-place pivoted cholesky
 function cholesky!(K::AbstractKroneckerProduct, ::Val{true}; tol = 0.0, check::Bool = true)
     f(A) = cholesky!(A, Val(true), tol = tol, check = check)
     FactorizedKronecker(f(K.A), f(K.B))
 end
 
-# overwrites input Kronecker product
+# qr
+function qr(K::AbstractKroneckerProduct, v::V = Val(false)) where {V<:Union{Val{true}, Val{false}}}
+    f(A) = qr(A, v)
+    FactorizedKronecker(f(K.A), f(K.B))
+end
+
+# in-place qr
 function qr!(K::AbstractKroneckerProduct, v::V = Val(false)) where {V<:Union{Val{true}, Val{false}}}
     f(A) = qr!(A, v)
     FactorizedKronecker(f(K.A), f(K.B))
 end
 
-# TODO: extend methods for all LinearAlgebra factorizations: svd, bunchkaufman, lu,
+# TODO: extend methods for all LinearAlgebra factorizations: svd, eigen, bunchkaufman, lu,
 
 # need to implement ldiv!, rdiv!, for \, / to work for factorizations of Kronecker matrices
 import LinearAlgebra:ldiv! #, rdiv!, \, /
@@ -137,60 +141,18 @@ end
     # end
 
 
-function LinearAlgebra.:\(K::AbstractKroneckerProduct{T}, c::AbstractVector{T}) where {T}
-    size(K, 2) != length(c) && throw(DimensionMismatch("size(K, 2) != length(c)"))
-    C = reshape(c, size(K.B, 1), size(K.A, 1)) # matricify
-    return vec((K.B \ C) / K.A') #(A ⊗ B)vec(X) = vec(C) <=> BXA' = C => X = B^{-1} C A'^{-1}
-end
-# SOLVING
-# Kx = c
-function LinearAlgebra.:\(K::AbstractKroneckerProduct{T}, c::AbstractVector{T}) where {T}
-    size(K, 1) != length(c) && throw(DimensionMismatch("size(K, 1) != length(c)"))
-    C = reshape(c, size(K.B, 1), size(K.A, 1)) # matricify
-    return vec((K.B \ C) / K.A') #(A ⊗ B)vec(X) = vec(C) <=> BXA' = C => X = B^{-1} C A'^{-1}
-end
-
-import LinearAlgebra: log, logdet
-
-function det(K::FactorizedKronecker{T}) where {T}
-    if issquare(K.A) && issquare(K.B)
-        m = size(K.A)[1]
-        n = size(K.B)[1]
-        return det(K.A)^n * det(K.B)^m
-    else
-        return zero(T)
-    end
-end
-
-"""
-    logdet(K::FactorizedKronecker)
-
-Compute the logarithm of the determinant of a Kronecker product.
-"""
-function logdet(K::FactorizedKronecker{T}) where {T}
-    if issquare(K.A) && issquare(K.B)
-        m = size(K.A)[1]
-        n = size(K.B)[1]
-        return n * logdet(K.A) + m * logdet(K.B)
-    else
-        return real(T)(-Inf)
-    end
-end
-
-# these need to change in base
-issquare(K::AbstractKroneckerProduct) = size(K, 1) == size(K, 2)
-
-function LinearAlgebra.tr(K::AbstractKroneckerProduct)
-    !issquare(K) && throw(
-                DimensionMismatch(
-                    "kronecker system is not square: dimensions are" * size(K)))
-    if issquare(K.A) && issquare(K.B)
-        return tr(K.A) * tr(K.B)
-    else
-        return sum(diag(K)) # fallback
-    end
-end
-
+# function LinearAlgebra.:\(K::AbstractKroneckerProduct{T}, c::AbstractVector{T}) where {T}
+#     size(K, 2) != length(c) && throw(DimensionMismatch("size(K, 2) != length(c)"))
+#     C = reshape(c, size(K.B, 1), size(K.A, 1)) # matricify
+#     return vec((K.B \ C) / K.A') #(A ⊗ B)vec(X) = vec(C) <=> BXA' = C => X = B^{-1} C A'^{-1}
+# end
+# # SOLVING
+# # Kx = c
+# function LinearAlgebra.:\(K::AbstractKroneckerProduct{T}, c::AbstractVector{T}) where {T}
+#     size(K, 1) != length(c) && throw(DimensionMismatch("size(K, 1) != length(c)"))
+#     C = reshape(c, size(K.B, 1), size(K.A, 1)) # matricify
+#     return vec((K.B \ C) / K.A') #(A ⊗ B)vec(X) = vec(C) <=> BXA' = C => X = B^{-1} C A'^{-1}
+# end
 
 # now we can define specific factorizations as subtypes
 # struct CholeskyKronecker{T} <: Factorization{T}
