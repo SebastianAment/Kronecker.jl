@@ -146,9 +146,9 @@ function LinearAlgebra.det(K::AbstractKroneckerProduct{T}) where {T}
     checksquare(K)
     A, B = getmatrices(K)
     if issquare(A) && issquare(B)
-        m = size(A)[1]
-        n = size(B)[1]
-        return det(K.A)^n * det(K.B)^m
+        m = size(A, 1)
+        n = size(B, 1)
+        return det(A)^n * det(B)^m
     else
         return zero(T)
     end
@@ -163,8 +163,8 @@ function LinearAlgebra.logdet(K::AbstractKroneckerProduct{T}) where {T}
     checksquare(K)
     A, B = getmatrices(K)
     if issquare(A) && issquare(B)
-        m = size(A)[1]
-        n = size(B)[1]
+        m = size(A, 1)
+        n = size(B, 1)
         return n * logdet(A) + m * logdet(B)
     else
         return real(T)(-Inf)
@@ -312,11 +312,4 @@ end
 function Base.:*(K::AbstractKroneckerProduct, a::Number)
     A, B = getmatrices(K)
     kronecker(A, B * a)
-end
-
-# SOLVING
-function LinearAlgebra.:\(K::AbstractKroneckerProduct{T}, c::AbstractVector{T}) where {T}
-    size(K, 1) != length(c) && throw(DimensionMismatch("size(K, 1) != length(c)"))
-    C = reshape(c, size(K.B, 1), size(K.A, 1)) # matricify
-    return vec((K.B \ C) / K.A') #(A ⊗ B)vec(X) = vec(C) <=> BXA' = C => X = B^{-1} C A'^{-1}
 end

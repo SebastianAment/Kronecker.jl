@@ -55,10 +55,10 @@ issquare(K::KroneckerPower) = issquare(K.A)
 Compute the determinant of a Kronecker power.
 """
 function LinearAlgebra.det(K::KroneckerPower)
-    checksquare(K.A)
+    n = checksquare(K.A)
     A, pow = K.A, K.pow
-    n = size(A, 1)
-    return det(K.A)^(n * pow)
+    p = pow * n^(pow-1)
+    return det(K.A)^p
 end
 
 """
@@ -67,10 +67,10 @@ end
 Compute the logarithm of the determinant of a Kronecker power.
 """
 function LinearAlgebra.logdet(K::KroneckerPower)
-    checksquare(K.A)
+    n = checksquare(K.A)
     A, pow = K.A, K.pow
-    n = size(A, 1)
-    return n * pow * logdet(K.A)
+    p = pow * n^(pow-1)
+    return p * logdet(K.A)
 end
 
 """

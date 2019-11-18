@@ -44,6 +44,17 @@
         As = A' * A
         @test det(⊗(As, 2)) ≈ det(kron(As, As))
         @test logdet(⊗(As, 2)) ≈ log(det(kron(As, As)))
+
+        local M = randn(2, 2)
+        M .= M'M
+        # println(det(⊗(M, 4)))
+        # println(det(M ⊗ M ⊗ M ⊗ M))
+        # f(A, d) = if d ≥ 2; kronecker(A, f(A, d-1)); else kronecker(A, A) end # creates a d-fold kronecker product
+        # @test f(M, 3) ≈ M ⊗ M ⊗ M
+        @test det(⊗(M, 3)) ≈ det(M ⊗ M ⊗ M)
+        @test logdet(⊗(M, 3)) ≈ logdet(M ⊗ M ⊗ M)
+        @test det(⊗(M, 4)) ≈ det(M ⊗ M ⊗ M ⊗ M)
+        @test logdet(⊗(M, 4)) ≈ logdet(M ⊗ M ⊗ M ⊗ M)
     end
 
 @testset "Mixed product" begin
